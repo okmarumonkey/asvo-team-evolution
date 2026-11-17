@@ -1,0 +1,3 @@
+[submodule "upstream/ASVO"]
+	path = upstream/ASVO
+	url = https://github.com/jingzhe-lin/ASVO.git
