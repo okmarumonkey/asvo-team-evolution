@@ -18,6 +18,8 @@ jupyter lab
 
 Open [the experiment notebook](team_evolution/experiments/evolution_experiment.ipynb). Select meeting and classifier models available to your OpenAI account. Creating a plan is offline. Running a meeting requires an API key, model access and an embedding model download on first use. The notebook reads `OPENAI_API_KEY` or prompts privately.
 
+Evolution plans must use schema version 27 and teamwork rubric version 7. Create a new plan when switching from an older format.
+
 The notebook starts with generation 0 (three meetings). To continue, raise the generation limit and reuse the saved plan and output directory. Each run writes an `index.html` with links to individual replays, a Markdown report and token usage.
 
 ## Command line

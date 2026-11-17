@@ -107,20 +107,12 @@ class EvolutionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_plan(invalid)
 
-    def test_previous_fixed_personality_plan_remains_valid(self):
-        old = copy.deepcopy(self.plan)
-        old['schema_version'] = 25
-        old['teamwork_rubric_version'] = 6
-        old['persona_variation'] = 'initial_desires_only'
-        old.pop('initial_desire_value')
-        for persona in old['personas']:
-            persona['role']['personality'] = {key: 5 for key in persona['role']['personality']}
-            persona['desire_traits'] = {key: 'moderately' for key in persona['desire_traits']}
-        validate_plan(old)
-        prior = copy.deepcopy(self.plan)
-        prior['schema_version'] = 26
-        prior['teamwork_rubric_version'] = 6
-        validate_plan(prior)
+    def test_rejects_superseded_evolution_plans(self):
+        for version in (4, 17, 25, 26, 28, None):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'schema 27'):
+                validate_plan(dict(self.plan, schema_version=version))
+        with self.assertRaisesRegex(ValueError, 'rubric 7'):
+            validate_plan(dict(self.plan, teamwork_rubric_version=6))
 
     def test_new_plan_uses_standard_asvo_action_prompt(self):
         persona = self.plan['personas'][0]
@@ -131,21 +123,6 @@ class EvolutionTests(unittest.TestCase):
         invalid['agent_action_guidance'] = 'different prompt'
         with self.assertRaises(ValueError):
             validate_plan(invalid)
-        previous = copy.deepcopy(self.plan)
-        previous['schema_version'] = 17
-        previous['teamwork_rubric_version'] = 6
-        previous['persona_variation'] = 'initial_desires_only'
-        previous.pop('initial_desire_value')
-        for persona in previous['personas']:
-            persona['role']['personality'] = {key: 5 for key in persona['role']['personality']}
-            persona['desire_traits'] = {key: 'moderately' for key in persona['desire_traits']}
-        previous.pop('action_parser_version')
-        previous['selection_rule'] = 'any_action_rate_plus_coverage_bonus'
-        previous['coverage_weight'] = 0.1
-        previous['agent_action_guidance'] = AGENT_ACTION_GUIDANCE
-        validate_plan(previous)
-        self.assertIn(AGENT_ACTION_GUIDANCE,
-                      persona_profile(persona, previous['agent_action_guidance']))
         self.assertIn(INDIVIDUAL_EVALUATION_CONTEXT,
                       self.plan['config']['scenario']['shared_memories'])
 
@@ -190,17 +167,6 @@ class EvolutionTests(unittest.TestCase):
         self.assertFalse(any(' is responsible for ' in memory
                              for memory in bound['scenario']['shared_memories']))
 
-    def test_saved_fixed_duty_plan_remains_valid_for_resume(self):
-        old = copy.deepcopy(self.plan)
-        old['schema_version'] = 4
-        old.pop('action_parser_version')
-        old['selection_rule'] = 'mean_rate_times_element_coverage'
-        old['role_assignment'] = 'sorted_persona_ids_to_original_role_slots'
-        del old['participant_assignment']
-        old['config']['scenario']['shared_memories'].append(
-            'P01 is responsible for planning, P02 is responsible for costs.')
-        validate_plan(old)
-
     def test_old_scheduled_update_reaches_everyone_only_at_scheduled_step(self):
         class Memory:
             def __init__(self): self.messages = []
@@ -238,14 +204,13 @@ class EvolutionTests(unittest.TestCase):
         agents = [a for f in document['frames'][1:] for a in f['agents']]
         agents[0]['teamwork_big_five']['vector'] = [1, 1, 0, 0, 0]
         agents[1]['teamwork_big_five']['vector'] = [1, 0, 0, 0, 0]
-        metrics = teamwork_metrics(document, 3, 'positive_element_count')
+        metrics = teamwork_metrics(document, 3)
         self.assertEqual(metrics['score'], 3)
         self.assertEqual(metrics['positive_element_count'], 3)
         self.assertEqual(metrics['positive_action_count'], 2)
         self.assertEqual(metrics['action_count'], 9)
         self.assertEqual(metrics['counts']['team_leadership'], 2)
-        self.assertEqual(teamwork_metrics(replay([1] * 5, expected_steps=3), 3,
-                                          'positive_element_count')['score'], 45)
+        self.assertEqual(teamwork_metrics(replay([1] * 5, expected_steps=3), 3)['score'], 45)
 
     def test_api_usage_is_logged_per_trial_and_aggregated(self):
         response = SimpleNamespace(
@@ -361,7 +326,7 @@ class EvolutionTests(unittest.TestCase):
         self.assertEqual(metrics['positive_action_count'], 6)
         self.assertEqual(metrics['any_action_rate'], 1)
         self.assertNotIn('any_event_rate', metrics)
-        self.assertAlmostEqual(metrics['score'], 1.04)
+        self.assertEqual(metrics['score'], 12)
         self.assertEqual(metrics['rates']['team_leadership'], 1)
         self.assertEqual(metrics['action_count'], 6)
 
@@ -376,79 +341,6 @@ class EvolutionTests(unittest.TestCase):
         document['teamwork_big_five']['source'] = 'event'
         with self.assertRaises(ValueError):
             teamwork_metrics(document, 2)
-        old = teamwork_metrics(document, 2, 'any_event_rate_plus_coverage_bonus')
-        self.assertEqual(old['event_count'], 6)
-        self.assertNotIn('any_action_rate', old)
-
-    def test_any_label_counts_once_and_coverage_bonus_is_additive(self):
-        def document_with_labels(assignments):
-            document = replay([0] * 5, expected_steps=4)
-            agents = [agent for frame in document['frames'][1:] for agent in frame['agents']]
-            for event_index, category_indices in assignments.items():
-                for category_index in category_indices:
-                    agents[event_index]['teamwork_big_five']['vector'][category_index] = 1
-            return document
-
-        broad = teamwork_metrics(document_with_labels({0: [0, 1], 1: [2], 2: [3], 3: [4]}), 4)
-        narrow = teamwork_metrics(document_with_labels({i: [0] for i in range(5)}), 4)
-        self.assertEqual(broad['positive_action_count'], 4)
-        self.assertEqual(narrow['positive_action_count'], 5)
-        self.assertEqual(broad['element_coverage'], 1)
-        self.assertEqual(narrow['element_coverage'], .2)
-        self.assertAlmostEqual(broad['score'], 4 / 12 + .10)
-        self.assertAlmostEqual(narrow['score'], 5 / 12 + .02)
-        self.assertLess(broad['score'], narrow['score'])
-        mean_only = teamwork_metrics(document_with_labels({i: [0] for i in range(5)}), 4,
-                                     'mean_five_element_rate')
-        self.assertEqual(mean_only['score'], narrow['mean_rate'])
-        old = teamwork_metrics(document_with_labels({i: [0] for i in range(5)}), 4,
-                               'mean_rate_times_element_coverage')
-        self.assertAlmostEqual(old['score'], narrow['mean_rate'] * .2)
-        schema9 = copy.deepcopy(self.plan)
-        schema9['schema_version'] = 9
-        schema9.pop('action_parser_version')
-        schema9['selection_rule'] = 'mean_rate_plus_coverage_bonus'
-        schema9['coverage_weight'] = 0.1
-        validate_plan(schema9)
-        schema10 = copy.deepcopy(self.plan)
-        schema10['schema_version'] = 10
-        schema10.pop('action_parser_version')
-        schema10['selection_rule'] = 'any_event_rate_plus_coverage_bonus'
-        schema10['coverage_weight'] = 0.1
-        del schema10['teamwork_rubric_version']
-        validate_plan(schema10)
-        schema11 = copy.deepcopy(self.plan)
-        schema11['schema_version'] = 11
-        schema11.pop('action_parser_version')
-        schema11['selection_rule'] = 'any_event_rate_plus_coverage_bonus'
-        schema11['coverage_weight'] = 0.1
-        schema11['teamwork_rubric_version'] = 2
-        validate_plan(schema11)
-        schema12 = copy.deepcopy(schema11)
-        schema12['schema_version'] = 12
-        schema12['teamwork_rubric_version'] = 3
-        validate_plan(schema12)
-        schema13 = copy.deepcopy(self.plan)
-        schema13['schema_version'] = 13
-        schema13.pop('action_parser_version')
-        schema13['selection_rule'] = 'any_action_rate_plus_coverage_bonus'
-        schema13['coverage_weight'] = 0.1
-        schema13['teamwork_rubric_version'] = 4
-        validate_plan(schema13)
-        schema14 = copy.deepcopy(self.plan)
-        schema14['schema_version'] = 14
-        schema14.pop('action_parser_version')
-        schema14['selection_rule'] = 'any_action_rate_plus_coverage_bonus'
-        schema14['coverage_weight'] = 0.1
-        schema14['teamwork_rubric_version'] = 5
-        validate_plan(schema14)
-        schema15 = copy.deepcopy(self.plan)
-        schema15['schema_version'] = 15
-        schema15.pop('action_parser_version')
-        schema15['selection_rule'] = 'any_action_rate_plus_coverage_bonus'
-        schema15['coverage_weight'] = 0.1
-        schema15['teamwork_rubric_version'] = 6
-        validate_plan(schema15)
 
     def test_missing_labels_order_or_steps_fail(self):
         for field in ('labels', 'order', 'steps', 'agents'):

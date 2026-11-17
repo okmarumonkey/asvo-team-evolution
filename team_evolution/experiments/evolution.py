@@ -6,7 +6,6 @@ import copy
 import html
 import itertools
 import json
-import math
 from pathlib import Path
 import random
 import re
@@ -141,102 +140,60 @@ def validate_plan(plan):
                 'advice_enabled': False, 'independent_validation': False}
     if any(plan.get(k) != v for k, v in required.items()):
         raise ValueError('20人・3チームの進化計算計画を指定してください。')
-    if plan.get('schema_version') not in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27):
-        raise ValueError('未対応の進化計算計画です。')
-    expected_rule = ('positive_element_count' if plan['schema_version'] >= 24
-                     else 'any_action_rate_plus_coverage_bonus' if plan['schema_version'] >= 13
-                     else 'any_event_rate_plus_coverage_bonus' if plan['schema_version'] >= 10
-                     else 'mean_rate_plus_coverage_bonus' if plan['schema_version'] == 9
-                     else 'mean_five_element_rate' if plan['schema_version'] == 8
-                     else 'mean_rate_times_element_coverage')
-    if plan.get('selection_rule') != expected_rule:
-        raise ValueError('計画の選抜スコア式が不正です。')
-    expected_rubric = (7 if plan['schema_version'] >= 27 else
-                       6 if plan['schema_version'] >= 16 else
-                       plan['schema_version'] - 9 if 11 <= plan['schema_version'] <= 15 else None)
-    if expected_rubric is not None and plan.get('teamwork_rubric_version') != expected_rubric:
-        raise ValueError('チームワーク判定基準の版が不正です。')
-    if plan['schema_version'] >= 16:
-        expected_personality = {PERSONALITY_KEYS.get(k, k): 5 for k in TRAITS}
-        svo_type = plan.get('uniform_svo_type')
-        if (svo_type not in ('Altruistic', 'Prosocial', 'Individualistic', 'Competitive')
-                or plan.get('persona_variation') != ('personality_only'
-                                                     if plan['schema_version'] >= 26
-                                                     else 'initial_desires_only')
-                or not isinstance(plan['config'].get('replay', {}).get('teamwork_classifier_model_name'), str)
-                or not plan['config']['replay']['teamwork_classifier_model_name'].strip()
-                or any(p['role'].get('social_personality') != svo_type
-                       or p['role'].get('gender') != 'female'
-                       for p in plan['personas'])):
-            raise ValueError('SVOを全員同じ類型にしてください。')
-        if plan['schema_version'] >= 26:
-            if plan.get('initial_desire_value') != 5 or any(
-                    p.get('initial_desires') != {d: 5 for d in plan['config']['profile']['wanted_desires']}
-                    for p in plan['personas']):
-                raise ValueError('欲求の初期値は全員・全項目5にしてください。')
-            profiles = set()
-            for p in plan['personas']:
-                personality = p['role'].get('personality')
-                if (not isinstance(personality, dict)
-                        or set(personality) != set(expected_personality)
-                        or any(type(value) is not int or not 3 <= value <= 9
-                               for value in personality.values())):
-                    raise ValueError('性格特性は8項目・各3〜9の整数にしてください。')
-                expected_degrees = trait_degrees(personality)
-                if p.get('desire_traits') != expected_degrees:
-                    raise ValueError('性格値と行動プロファイルの記述が一致しません。')
-                profiles.add(tuple(sorted(personality.items())))
-            if len(profiles) < 2:
-                raise ValueError('候補者ごとに異なる性格特性を生成してください。')
-        elif any(p['role'].get('personality') != expected_personality
-                 or p.get('desire_traits') != {key: 'moderately' for key in TRAITS}
-                 for p in plan['personas']):
-            raise ValueError('旧計画では性格特性を固定してください。')
-    if plan['schema_version'] == 17 and plan.get('agent_action_guidance') != AGENT_ACTION_GUIDANCE:
-        raise ValueError('行動生成プロンプトの版が不正です。')
-    if plan['schema_version'] in (16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27) and plan.get('agent_action_guidance'):
+    if plan.get('schema_version') != 27:
+        raise ValueError('Only evolution plan schema 27 is supported. Create a new plan.')
+    if plan.get('selection_rule') != 'positive_element_count' or plan.get('coverage_weight') is not None:
+        raise ValueError('The evolution score must count positive teamwork elements.')
+    if plan.get('teamwork_rubric_version') != 7:
+        raise ValueError('Evolution plans require teamwork rubric 7.')
+    expected_personality = {PERSONALITY_KEYS.get(k, k): 5 for k in TRAITS}
+    svo_type = plan.get('uniform_svo_type')
+    if (svo_type not in ('Altruistic', 'Prosocial', 'Individualistic', 'Competitive')
+            or plan.get('persona_variation') != 'personality_only'
+            or not isinstance(plan['config'].get('replay', {}).get('teamwork_classifier_model_name'), str)
+            or not plan['config']['replay']['teamwork_classifier_model_name'].strip()
+            or any(p['role'].get('social_personality') != svo_type
+                   or p['role'].get('gender') != 'female'
+                   for p in plan['personas'])):
+        raise ValueError('SVOを全員同じ類型にしてください。')
+    if plan.get('initial_desire_value') != 5 or any(
+            p.get('initial_desires') != {d: 5 for d in plan['config']['profile']['wanted_desires']}
+            for p in plan['personas']):
+        raise ValueError('欲求の初期値は全員・全項目5にしてください。')
+    profiles = set()
+    for p in plan['personas']:
+        personality = p['role'].get('personality')
+        if (not isinstance(personality, dict)
+                or set(personality) != set(expected_personality)
+                or any(type(value) is not int or not 3 <= value <= 9
+                       for value in personality.values())):
+            raise ValueError('性格特性は8項目・各3〜9の整数にしてください。')
+        expected_degrees = trait_degrees(personality)
+        if p.get('desire_traits') != expected_degrees:
+            raise ValueError('性格値と行動プロファイルの記述が一致しません。')
+        profiles.add(tuple(sorted(personality.items())))
+    if len(profiles) < 2:
+        raise ValueError('候補者ごとに異なる性格特性を生成してください。')
+    if plan.get('agent_action_guidance'):
         raise ValueError('標準ASVOの行動生成プロンプトを使用してください。')
-    if (plan['schema_version'] == 18
-            and INDIVIDUAL_EVALUATION_CONTEXT not in plan['config']['scenario'].get('shared_memories', [])):
-        raise ValueError('チーム成果と個人貢献の評価条件を共有シナリオに含めてください。')
-    if plan['schema_version'] in (24, 25, 26, 27):
-        scenario = plan['config']['scenario']
-        if (scenario.get('shared_memories') != list(MEETING_SHARED_MEMORIES)
-                or scenario.get('role_defaults', {}).get('goal') != MEETING_GOAL
-                or plan['config']['runtime'].get('episode_length') != 3
-                or 'coverage_weight' in plan
-                or any(role.get('goal') != MEETING_GOAL or role.get('specific_memories')
-                       for role in scenario['roles'])):
-            raise ValueError('会議は商品案の検討と意思決定に絞ってください。')
-    if (plan['schema_version'] >= 25 and plan.get('action_parser_version') != 2
-            or plan['schema_version'] <= 24 and plan.get('action_parser_version', 1) != 1):
+    scenario = plan['config']['scenario']
+    if (scenario.get('shared_memories') != list(MEETING_SHARED_MEMORIES)
+            or scenario.get('role_defaults', {}).get('goal') != MEETING_GOAL
+            or plan['config']['runtime'].get('episode_length') != 3
+            or 'coverage_weight' in plan
+            or any(role.get('goal') != MEETING_GOAL or role.get('specific_memories')
+                   for role in scenario['roles'])):
+        raise ValueError('会議は商品案の検討と意思決定に絞ってください。')
+    if plan.get('action_parser_version') != 2:
         raise ValueError('計画の行動候補解析の版が不正です。')
-    if plan['schema_version'] >= 13 and plan.get('teamwork_classification_source') != 'action':
+    if plan.get('teamwork_classification_source') != 'action':
         raise ValueError('新しい計画はactionを判定対象にしてください。')
-    if 9 <= plan['schema_version'] <= 23:
-        weight = plan.get('coverage_weight')
-        if (isinstance(weight, bool) or not isinstance(weight, (int, float))
-                or not math.isfinite(weight) or not 0 <= weight <= 1):
-            raise ValueError('coverage_weightは0〜1の数値にしてください。')
-    if plan['schema_version'] >= 5:
-        scenario = plan['config']['scenario']
-        role_names = [role['name'] for role in scenario['roles']]
-        if (plan.get('participant_assignment') != 'sorted_persona_ids_to_neutral_slots'
-                or any(_fixed_duty_memory(memory, role_names)
-                       for memory in scenario.get('shared_memories', []))):
-            raise ValueError('固定担当のないシナリオを指定してください。')
-    if plan['schema_version'] == 6:
-        scenario = plan['config']['scenario']
-        updates = scenario.get('scheduled_updates')
-        steps = plan['config']['runtime']['episode_length']
-        if (not isinstance(updates, list) or
-                any(not isinstance(item, dict)
-                    or type(item.get('before_step')) is not int
-                    or not 1 <= item['before_step'] <= steps
-                    or not isinstance(item.get('text'), str)
-                    or not item['text'].strip() for item in updates)):
-            raise ValueError('会議中の情報更新が不正です。')
-    if plan['schema_version'] >= 7 and plan['config']['scenario'].get('scheduled_updates'):
+    role_names = [role['name'] for role in scenario['roles']]
+    if (plan.get('participant_assignment') != 'sorted_persona_ids_to_neutral_slots'
+            or any(_fixed_duty_memory(memory, role_names)
+                   for memory in scenario.get('shared_memories', []))):
+        raise ValueError('固定担当のないシナリオを指定してください。')
+    if scenario.get('scheduled_updates'):
         raise ValueError('今回の計画では会議途中の情報追加を使用しません。')
     updates = plan.get('generation_updates')
     if not isinstance(updates, int) or updates < 0:
@@ -287,8 +244,7 @@ def bind_team(plan, candidate):
     return config, people
 
 
-def teamwork_metrics(document, expected_steps,
-                     selection_rule='any_action_rate_plus_coverage_bonus', coverage_weight=0.10):
+def teamwork_metrics(document, expected_steps):
     """Strict complete classification measurement, with no access to desire state."""
     frames = document['frames']
     if [f['step'] for f in frames] != list(range(expected_steps + 1)):
@@ -298,10 +254,7 @@ def teamwork_metrics(document, expected_steps,
         raise ValueError('Replayには3人が必要です。')
     counts = dict.fromkeys(CATEGORIES, 0)
     positive_events = 0
-    source_field = ('action' if selection_rule in ('any_action_rate_plus_coverage_bonus',
-                                                 'positive_element_count')
-                    else 'event')
-    if source_field == 'action' and document.get('teamwork_big_five', {}).get('source') != 'action':
+    if document.get('teamwork_big_five', {}).get('source') != 'action':
         raise ValueError('actionから判定したReplayが必要です。')
     individual = {name: dict.fromkeys(CATEGORIES, 0) for name in sorted(names)}
     for frame in frames[1:]:
@@ -310,7 +263,7 @@ def teamwork_metrics(document, expected_steps,
         for agent in frame['agents']:
             labels = agent.get('teamwork_big_five') or {}
             vector = labels.get('vector')
-            if (not agent.get(source_field) or labels.get('vector_order') != list(CATEGORIES)
+            if (not agent.get('action') or labels.get('vector_order') != list(CATEGORIES)
                     or not isinstance(vector, list) or len(vector) != 5
                     or any(type(v) is not int or v not in (0, 1) for v in vector)):
                 raise ValueError('チームワーク分類が不完全です。欠損を0点に置換しません。')
@@ -325,38 +278,16 @@ def teamwork_metrics(document, expected_steps,
     mean_rate = statistics.mean(rates.values())
     any_event_rate = positive_events / events
     element_coverage = sum(value > 0 for value in counts.values()) / len(CATEGORIES)
-    if selection_rule == 'positive_element_count':
-        score = sum(counts.values())
-    elif selection_rule in ('any_action_rate_plus_coverage_bonus',
-                          'any_event_rate_plus_coverage_bonus',
-                          'mean_rate_plus_coverage_bonus'):
-        if (isinstance(coverage_weight, bool) or not isinstance(coverage_weight, (int, float))
-                or not math.isfinite(coverage_weight) or not 0 <= coverage_weight <= 1):
-            raise ValueError('coverage_weightは0〜1の数値にしてください。')
-        base_rate = (any_event_rate if selection_rule in (
-                         'any_action_rate_plus_coverage_bonus',
-                         'any_event_rate_plus_coverage_bonus')
-                     else mean_rate)
-        score = base_rate + coverage_weight * element_coverage
-    elif selection_rule == 'mean_five_element_rate':
-        score = mean_rate
-    elif selection_rule == 'mean_rate_times_element_coverage':
-        score = mean_rate * element_coverage
-    else:
-        raise ValueError('未知の選抜スコア式です。')
+    score = sum(counts.values())
     metrics = {'score': score, 'mean_rate': mean_rate,
                'positive_element_count': sum(counts.values()),
-               'classification_source': source_field, 'classification_count': events,
+               'classification_source': 'action', 'classification_count': events,
                'element_coverage': element_coverage, 'rates': rates, 'counts': counts,
                'classification_coverage': 1.0,
                'individual_rates': {name: {k: v / expected_steps for k, v in values.items()}
                                     for name, values in individual.items()}}
-    if source_field == 'action':
-        metrics.update(any_action_rate=any_event_rate,
-                       positive_action_count=positive_events, action_count=events)
-    else:
-        metrics.update(any_event_rate=any_event_rate,
-                       positive_event_count=positive_events, event_count=events)
+    metrics.update(any_action_rate=any_event_rate,
+                   positive_action_count=positive_events, action_count=events)
     return metrics
 
 
@@ -437,39 +368,16 @@ def evolution_report(generations, plan=None, *, target_generation_updates=None):
                  if record['generation'] == g['generation']]
     mutated_count = sum(record['team']['origin']['mutation'] is not None
                         for record in offspring)
-    if plan and plan.get('selection_rule') == 'positive_element_count':
-        score_description = ('選抜スコア＝全Agent・全ステップのactionで1と判定された'
-                             'チームワーク5要素の合計。1行動で複数要素が1ならそれぞれ加算し、'
-                             '同じ要素が別の行動で再び1なら再加算する。3ステップの範囲は0〜45点。')
-    elif plan and plan.get('selection_rule') == 'any_action_rate_plus_coverage_bonus':
-        weight = plan['coverage_weight']
-        score_description = (f'選抜スコア＝陽性行動選択率＋{weight:.2f}×要素カバー率。'
-                             '各Agent・各ステップのactionで5要素のいずれかが陽性なら1、全て陰性なら0。'
-                             'これは協働行動の試みを測り、実現結果の評価ではありません。'
-                             '要素カバー率は1回以上観測された要素数÷5。')
-    elif plan and plan.get('selection_rule') == 'any_event_rate_plus_coverage_bonus':
-        weight = plan['coverage_weight']
-        score_description = (f'選抜スコア＝陽性イベント率＋{weight:.2f}×要素カバー率。'
-                             '各Agent・各ステップで5要素のいずれかが陽性なら1、全て陰性なら0。'
-                             '要素カバー率は1回以上観測された要素数÷5。')
-    elif plan and plan.get('selection_rule') == 'mean_rate_plus_coverage_bonus':
-        weight = plan['coverage_weight']
-        score_description = (f'選抜スコア＝平均出現率＋{weight:.2f}×要素カバー率。'
-                             '要素カバー率は1回以上観測された要素数÷5。')
-    elif plan and plan.get('selection_rule') == 'mean_five_element_rate':
-        score_description = '選抜スコア＝5要素の平均出現率。要素カバー率は別に表示し、選抜には掛けません。'
-    else:
-        score_description = '選抜スコア＝5要素の平均出現率×観測された要素の割合。'
-    if plan and plan.get('teamwork_rubric_version', 0) >= 7:
-        score_description += ' 適応性の判定では直前の確定Eventをきっかけの文脈にのみ用いる。'
+    score_description = ('選抜スコア＝全Agent・全ステップのactionで1と判定された'
+                         'チームワーク5要素の合計。3ステップの範囲は0〜45点。'
+                         ' 適応性の判定では直前の確定Eventをきっかけの文脈にのみ用いる。')
     lines = ['# チーム編成の進化計算：チームワーク評価', '',
              f'20人から3人を選択。初期3チーム＋{planned_updates}世代×新規2チーム＝{3 + 2 * planned_updates}回を計画。',
              f'進捗: 世代{updates}/{planned_updates}、{3 + 2 * updates}/{3 + 2 * planned_updates}試行。'
              + ('完了。' if complete else '途中経過。'),
              f'突然変異: {mutated_count}/{len(offspring)}子チーム（選択確率50%、候補不足時は方法を切替）。',
              '助言・欲求充足の採点・独立した検証は行いません。', '',
-             score_description + (' 達成率ではありません。' if plan and plan.get('selection_rule') == 'positive_element_count'
-                                  else ' 無単位の指標であり、達成率ではありません。'), '',
+             score_description + ' 達成率ではありません。', '',
              '| 世代 | 新規評価数 | 集団平均スコア | 新規平均スコア | 新規最高スコア | 最高スコア（保持含む） | 最高チームの要素数 |',
              '|---|---:|---:|---:|---:|---:|---:|']
     for g in generations:
@@ -477,22 +385,11 @@ def evolution_report(generations, plan=None, *, target_generation_updates=None):
                      f'{g["population_mean"]:.4f} | {g["new_mean"]:.4f} | '
                      f'{g["new_best"]:.4f} | {g["best_score"]:.4f} | '
                      f'{round(g["best_element_coverage"] * len(CATEGORIES))}/5 |')
-    rule = plan.get('selection_rule') if plan else None
-    rate_key = ('best_positive_element_count' if rule == 'positive_element_count'
-                else 'best_any_action_rate' if rule == 'any_action_rate_plus_coverage_bonus'
-                else 'best_any_event_rate' if rule == 'any_event_rate_plus_coverage_bonus'
-                else 'best_mean_rate')
-    rate_label = ('陽性要素数' if rate_key == 'best_positive_element_count'
-                  else '陽性行動選択率' if rate_key == 'best_any_action_rate'
-                  else '陽性イベント率' if rate_key == 'best_any_event_rate'
-                  else '平均出現率')
-    def format_rate(value):
-        return str(value) if rate_key == 'best_positive_element_count' else f'{value:.1%}'
     lines += ['', f'初期最高チーム: {first["best_team"]}',
               f'{latest_label}の最高チーム: {last["best_team"]}',
               f'初期最高から{latest_label}までのスコア差: {last["best_score"] - first["best_score"]:+.4f}',
-              f'初期最高の{rate_label}: {format_rate(first[rate_key])}、要素カバー率: {first["best_element_coverage"]:.0%}',
-              f'{latest_label}の最高チームの{rate_label}: {format_rate(last[rate_key])}、要素カバー率: {last["best_element_coverage"]:.0%}',
+              f'初期最高の陽性要素数: {first["best_positive_element_count"]}、要素カバー率: {first["best_element_coverage"]:.0%}',
+              f'{latest_label}の最高チームの陽性要素数: {last["best_positive_element_count"]}、要素カバー率: {last["best_element_coverage"]:.0%}',
               '', f'| 要素 | 初期最高チーム | {latest_label}の最高チーム | 差（ポイント） |',
               '|---|---:|---:|---:|']
     for key in CATEGORIES:
@@ -501,22 +398,20 @@ def evolution_report(generations, plan=None, *, target_generation_updates=None):
     lines += ['', '## 世代別の編成と系譜', '']
     for g in generations:
         lines += [f'### 世代{g["generation"]}', '',
-                  f'| 順位 | メンバー | 選抜スコア（無単位） | {rate_label} | 観測要素数 | 由来 |',
+                  f'| 順位 | メンバー | 選抜スコア（無単位） | 陽性要素数 | 観測要素数 | 由来 |',
                   '|---|---|---:|---:|---:|---|']
         for position, record in enumerate(g['population'], 1):
             candidate = record['team']
             kind = 'elite（再評価なし）' if record['generation'] < g['generation'] else candidate['origin']['kind']
             metrics = record['metrics']
             lines.append(f'| {position} | {", ".join(candidate["members"])} | '
-                         f'{metrics["score"]:.4f} | {format_rate(metrics["positive_element_count" if rate_key == "best_positive_element_count" else "any_action_rate" if rate_key == "best_any_action_rate" else "any_event_rate" if rate_key == "best_any_event_rate" else "mean_rate"])} | '
+                         f'{metrics["score"]:.4f} | {metrics["positive_element_count"]} | '
                          f'{round(metrics["element_coverage"] * len(CATEGORIES))}/5 | {kind} |')
         lines.append('')
     lines += [score_description,
               'エリート保持により最高値は下がりません。新規チームの平均・最高値も併記しています。',
               'これは探索中の評価値の変化であり、独立試行での再現性・統計的な効果は未確認です。',
-              ('担当は事前に固定せず、チーム内で決めます。'
-               if plan and plan.get('schema_version', 0) >= 5 else
-               '旧計画では企画・製造・マーケティングの担当を固定しています。'),
+              '担当は事前に固定せず、チーム内で決めます。',
               '外部LLMの応答は同じseedでも一致するとは限りません。']
     return '\n'.join(lines) + '\n'
 
@@ -568,9 +463,7 @@ def write_overview_html(output, plan, records, target_generation_updates, *, com
         'adaptability': '適応性',
         'team_orientation': 'チーム志向',
     }
-    count_score = plan['selection_rule'] == 'positive_element_count'
-    score_note = ('陽性判定された5要素の合計。1行動の複数要素や別行動での再出現も数えます。'
-                  if count_score else '計画に保存されたスコア式で評価しています。')
+    score_note = '陽性判定された5要素の合計。1行動の複数要素や別行動での再出現も数えます。'
     best = max(records, key=lambda row: row['metrics']['score']) if records else None
     best_text = (f'{best["metrics"]["score"]:g}点 · '
                  f'{html.escape(best["team"]["id"])}' if best else '—')
@@ -583,7 +476,7 @@ def write_overview_html(output, plan, records, target_generation_updates, *, com
         links = (f'<a href="{replay_base}replay.html">Replay</a> '
                  f'<a href="{replay_base}replay.json">JSON</a>')
         counts = ''.join(f'<td>{metrics["counts"][key]}</td>' for key in categories)
-        score = f'{metrics["score"]:g}' if count_score else f'{metrics["score"]:.4f}'
+        score = f'{metrics["score"]:g}'
         usage = record.get('usage') or {}
         calls = usage.get('api_calls', '—')
         rows.append(
@@ -658,8 +551,7 @@ def rebuild_overview_html(plan, output):
         if (identity['plan_hash'] != fingerprint(plan)
                 or fingerprint(replay) != saved['replay_hash']):
             raise ValueError(f'保存済み試行が計画と一致しません: {path.parent.name}')
-        metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'],
-                                   plan['selection_rule'], plan.get('coverage_weight', 0.10))
+        metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'])
         usage_path = path.parent / 'usage.json'
         usage = json.loads(usage_path.read_text(encoding='utf-8')) if usage_path.exists() else None
         records.append({'team': identity['team'], 'generation': identity['generation'],
@@ -720,8 +612,7 @@ def _run(plan, output, simulate, through_generation):
             if saved['identity'] != identity or fingerprint(replay) != saved['replay_hash']:
                 raise ValueError('保存済み試行の設定またはReplayが変更されています。')
             if not translation_requested or has_translated_fields:
-                metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'],
-                                           plan['selection_rule'], plan.get('coverage_weight', 0.10))
+                metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'])
             else:
                 saved_path.unlink()
                 replay = None
@@ -754,8 +645,7 @@ def _run(plan, output, simulate, through_generation):
             if usage is not None:
                 write_json(destination / 'usage.json', usage)
             write_json(destination / 'replay.json', replay)
-            metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'],
-                                       plan['selection_rule'], plan.get('coverage_weight', 0.10))
+            metrics = teamwork_metrics(replay, plan['config']['runtime']['episode_length'])
             write_json(saved_path, {'identity': identity, 'replay_hash': fingerprint(replay)})
         usage_path = destination / 'usage.json'
         usage = json.loads(usage_path.read_text(encoding='utf-8')) if usage_path.exists() else None
