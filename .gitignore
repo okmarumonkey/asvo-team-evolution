@@ -1,0 +1,25 @@
+# Local credentials and machine settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+.idea/
+.vscode/
+# Python and Jupyter
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+*.egg-info/
+build/
+dist/
+# Generated plans, replays, logs and reports
+runs/
+result_folder/
+tmp/
+*.log
+evolution_plan*.json
+poc2_plan*.json

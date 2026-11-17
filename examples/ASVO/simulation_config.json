@@ -1,0 +1,136 @@
+{
+  "runtime": {
+    "episode_length": 2,
+    "num_players": 3,
+    "tested_agents": [
+      "ASVO"
+    ],
+    "random_seed": null
+  },
+  "model": {
+    "disable_language_model": false,
+    "api_type": "openai",
+    "model_name": "gpt-5.6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "device": "cpu"
+  },
+  "embedding": {
+    "model_name": "sentence-transformers/all-mpnet-base-v2"
+  },
+  "profile": {
+    "use_previous": false,
+    "previous_profile_file": null,
+    "initial_value_distribution": {
+      "type": "normal",
+      "mean": 5,
+      "stddev": 2,
+      "min": 0,
+      "max": 10
+    },
+    "wanted_desires": [
+      "sense of superiority",
+      "sense_of_achievement",
+      "confidence",
+      "joyfulness",
+      "comfort",
+      "recognition",
+      "spiritual satisfaction",
+      "sense of control"
+    ],
+    "hidden_desires": []
+  },
+  "output": {
+    "result_folder": "result_folder"
+  },
+  "replay": {
+    "translate_actions_ja": true,
+    "translate_events_ja": true,
+    "summarize_shared_memories_ja": true,
+    "summarize_steps_ja": true,
+    "summarize_result_ja": true,
+    "classify_teamwork_big_five": true
+  },
+  "clock": {
+    "setup_time": "2026-09-01T09:00:00",
+    "start_time": "2026-09-01T10:00:00",
+    "major_step_minutes": 20,
+    "minor_step_seconds": 10
+  },
+  "scenario": {
+    "shared_memories": [
+      "Three employees are meeting in a company conference room to develop a new beer product for adult consumers.",
+      "The team must submit one product proposal to the management review meeting by noon today.",
+      "The proposal must specify the target adult customers, product concept, flavor and aroma, alcohol content, principal ingredients, package design, retail price, sales channels, and launch schedule.",
+      "P01 is responsible for product planning and customer needs, P02 is responsible for brewing feasibility and manufacturing costs, and P03 is responsible for marketing, sales channels, and competitor information.",
+      "The proposal will be evaluated as a team result, while each employee's individual contribution will also affect their performance evaluation.",
+      "The new product must use the company's existing brewing and packaging equipment and remain within a limited trial-production budget.",
+      "The team has several competing ideas, including a distinctive hop-forward beer and a lighter beer designed to pair easily with meals, but it has not agreed on a final concept.",
+      "Recent customer research suggests that aroma, compatibility with meals, price, and package appeal may be valued differently across customer groups.",
+      "A supplier has warned that one of the proposed hops may not arrive in time for the planned test brew, although alternative ingredients are available.",
+      "The three employees have access to the market research, preliminary cost estimates, brewing notes, and presentation template, but they must decide how to organize the remaining work without their manager in the room."
+    ],
+    "gm_facts_desc": "Shared context for the new beer product planning meeting and employee interactions.",
+    "role_defaults": {
+      "goal": "Remain in the conference room and work with the other employees to finalize a feasible new beer product proposal for the management review meeting by noon.",
+      "specific_memories": [
+        "The current task takes place in a company conference room, where the team is planning a new beer product for adult consumers.",
+        "The team must agree on one coherent product concept and complete the proposal before the noon deadline.",
+        "All three employees remain in the conference room with access to the shared research, cost estimates, brewing notes, and presentation materials."
+      ],
+      "player_observe": "{name} is in the conference room, working with the other two employees to develop and finalize the new beer product proposal.",
+      "gm_observe": "{name} is in the conference room and is currently participating in the new beer product planning meeting."
+    },
+    "player_observe": [],
+    "gm_observe": [],
+    "roles": [
+      {
+        "name": "P01",
+        "gender": "female",
+        "social_personality": "Altruistic",
+        "personality": {
+          "possessive": 3,
+          "confidence": 6,
+          "ambitious": 5,
+          "relaxed": 8,
+          "attention_seeking": 3,
+          "competitive": 2,
+          "cheerful": 7,
+          "spiritual": 8
+        },
+        "main_character": true
+      },
+      {
+        "name": "P02",
+        "gender": "male",
+        "social_personality": "Individualistic",
+        "personality": {
+          "possessive": 7,
+          "confidence": 8,
+          "ambitious": 9,
+          "relaxed": 4,
+          "attention_seeking": 7,
+          "competitive": 8,
+          "cheerful": 5,
+          "spiritual": 3
+        },
+        "main_character": true
+      },
+      {
+        "name": "P03",
+        "gender": "male",
+        "social_personality": "Prosocial",
+        "personality": {
+          "possessive": 4,
+          "confidence": 5,
+          "ambitious": 6,
+          "relaxed": 6,
+          "attention_seeking": 4,
+          "competitive": 4,
+          "cheerful": 6,
+          "spiritual": 7
+        },
+        "main_character": true
+      }
+    ]
+  }
+}

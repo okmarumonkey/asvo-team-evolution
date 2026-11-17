@@ -1,0 +1,134 @@
+{
+  "runtime": {
+    "episode_length": 6,
+    "num_players": 3,
+    "tested_agents": [
+      "ASVO"
+    ],
+    "random_seed": null
+  },
+  "model": {
+    "disable_language_model": false,
+    "api_type": "openai",
+    "model_name": "gpt-5.6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "device": "cpu"
+  },
+  "embedding": {
+    "model_name": "sentence-transformers/all-mpnet-base-v2"
+  },
+  "profile": {
+    "use_previous": false,
+    "previous_profile_file": null,
+    "initial_value_distribution": {
+      "type": "normal",
+      "mean": 5,
+      "stddev": 2,
+      "min": 0,
+      "max": 10
+    },
+    "wanted_desires": [
+      "sense of superiority",
+      "sense_of_achievement",
+      "confidence",
+      "joyfulness",
+      "comfort",
+      "recognition",
+      "spiritual satisfaction",
+      "sense of control"
+    ],
+    "hidden_desires": []
+  },
+  "output": {
+    "result_folder": "result_folder"
+  },
+  "replay": {
+    "translate_actions_ja": true,
+    "translate_events_ja": true,
+    "summarize_shared_memories_ja": true,
+    "summarize_steps_ja": true,
+    "summarize_result_ja": true,
+    "classify_teamwork_big_five": true
+  },
+  "clock": {
+    "setup_time": "2025-10-01T09:00:00",
+    "start_time": "2025-10-02T10:00:00",
+    "major_step_minutes": 20,
+    "minor_step_seconds": 10
+  },
+  "scenario": {
+    "shared_memories": [
+      "It is the weekend, and three employees are working overtime in the office.",
+      "They are working overtime because a client made unexpected last-minute changes to the requirements, forcing the team to adjust the report and slides over the weekend.",
+      "All employees' salary is closely tied to monthly performance evaluations.",
+      "The three employees sit at nearby desks, allowing them to talk easily.",
+      "A half-finished cup of coffee sits on one desk, while another desk has neatly stacked documents and a calculator.",
+      "The office clock shows mid-morning, and the room is quiet except for the soft hum of a printer in the corner.",
+      "One employee occasionally sighs or rubs their temples, showing signs of mild stress from multitasking.",
+      "The employees occasionally ask each other questions about formatting, data sources, and task allocation.",
+      "The atmosphere is relatively calm but carries a sense of shared busyness typical of office work.",
+      "Their manager is not in the room, so they interact freely without formal supervision."
+    ],
+    "gm_facts_desc": "General knowledge of the office overtime environment and employee interactions.",
+    "role_defaults": {
+      "goal": "Remain in the office and help complete the revised client report and presentation.",
+      "specific_memories": [
+        "The current task takes place in the office. The team is revising a client report and presentation, and no one has left the office."
+      ],
+      "player_observe": "{name} is at a nearby office desk, working alongside the other two employees on the revised client report and presentation.",
+      "gm_observe": "{name} is in the office and is currently participating in the revision of the client report and presentation."
+    },
+    "player_observe": [],
+    "gm_observe": [],
+    "roles": [
+      {
+        "name": "P01",
+        "gender": "female",
+        "social_personality": "Altruistic",
+        "personality": {
+          "possessive": 3,
+          "confidence": 6,
+          "ambitious": 5,
+          "relaxed": 8,
+          "attention_seeking": 3,
+          "competitive": 2,
+          "cheerful": 7,
+          "spiritual": 8
+        },
+        "main_character": true
+      },
+      {
+        "name": "P02",
+        "gender": "male",
+        "social_personality": "Individualistic",
+        "personality": {
+          "possessive": 7,
+          "confidence": 8,
+          "ambitious": 9,
+          "relaxed": 4,
+          "attention_seeking": 7,
+          "competitive": 8,
+          "cheerful": 5,
+          "spiritual": 3
+        },
+        "main_character": true
+      },
+      {
+        "name": "P03",
+        "gender": "male",
+        "social_personality": "Prosocial",
+        "personality": {
+          "possessive": 4,
+          "confidence": 5,
+          "ambitious": 6,
+          "relaxed": 6,
+          "attention_seeking": 4,
+          "competitive": 4,
+          "cheerful": 6,
+          "spiritual": 7
+        },
+        "main_character": true
+      }
+    ]
+  }
+}
